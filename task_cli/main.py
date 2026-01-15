@@ -3,6 +3,7 @@ import os
 import yaml
 from datetime import datetime
 
+#Create .yaml if archive dont exist
 def yaml_dont_exist(file_path):
     data = {
             "task" : []
@@ -15,7 +16,8 @@ def yaml_dont_exist(file_path):
             allow_unicode=True
         )
 
-def rewrite(tasks,file_path):
+#Rewrite yaml text
+def save_tasks(tasks,file_path):
     with open(file_path, "w", encoding="utf-8") as file:
                 yaml.dump(
                     tasks,
@@ -25,14 +27,8 @@ def rewrite(tasks,file_path):
                     sort_keys=False
                 )
 
-def main():
-    file_path = "task.yaml"
-    if not os.path.exists(file_path):
-        yaml_dont_exist(file_path=file_path)
-
-    args = sys.argv[1:]
-    if not args:
-        print("""Uso: 
+def help():
+    print("""Uso: 
 # Adding a new task
 task-cli add \"Descripcion\"
 
@@ -52,6 +48,23 @@ task-cli list done
 task-cli list todo
 task-cli list in-progress
 """)
+
+def get_task(tasks, task_id):
+    for task in tasks['task']:
+        if task['id'] == task_id:
+            return task
+    print("Invalid ID")
+    sys.exit(1)
+
+def main():
+    file_path = "task.yaml"
+    if not os.path.exists(file_path):
+        yaml_dont_exist(file_path=file_path)
+
+    args = sys.argv[1:]
+    #If nothing write ,show instructions
+    if not args:
+        help()
         sys.exit()
 
     command = args[0]
@@ -59,6 +72,7 @@ task-cli list in-progress
     with open(file_path) as file:
         tasks = yaml.safe_load(file)
 
+    #If .yaml is empty
     if tasks is None:
         tasks = {'task': []}
 
@@ -68,64 +82,54 @@ task-cli list in-progress
     time = datetime.now().isoformat()
     match command: 
         case "add": 
-            task = " ".join(args[1:])
-            if tasks['task']:
-                last_id = tasks['task'][-1]['id']
-            else:
-                last_id = 0
-            new_task = {
-                'id' : last_id + 1,
-                'description' : task,
+            description = " ".join(args[1:])
+            if not description:
+                print("Invalid description")
+                sys.exit(1)
+            last_id = tasks['task'][-1]['id'] + 1 if tasks['task'] else 1
+            tasks['task'].append(
+                {
+                'id' : last_id,
+                'description' : description,
                 'status' : 'Todo',
                 'createdAt' : time,
                 'updatedAt' : time
-            }
-            tasks['task'].append(new_task)
-            rewrite(tasks,file_path)
+                }
+            )
         case "update":
-            id = int(args[1]) - 1
-            task = " ".join(args[2:])
-            tasks['task'][id]['description'] = task
-            tasks['task'][id]['updatedAt'] = time
-            rewrite(tasks,file_path)
+            task = get_task(tasks,int(args[1]))
+            task['description'] = " ".join(args[2:])
+            task['updatedAt'] = time
         case "delete":
-            id = int(args[1]) - 1
-            del tasks['task'][id]
-            rewrite(tasks,file_path)
+            for i, task in enumerate(tasks['task']):
+                if task['id'] == int(args[1]):
+                    del tasks['task'][i]
+                    save_tasks(tasks,file_path)
+            print("Invalid ID")
+            sys.exit(1) 
         case "mark-in-progress":
-            id = int(args[1]) - 1
-            tasks['task'][id]['status'] = 'In-progress'
-            tasks['task'][id]['updatedAt'] = time
-            rewrite(tasks,file_path)
+            task = get_task(tasks,int(args[1]))
+            task['status'] = 'In-progress'
+            task['updatedAt'] = time
         case "mark-done":
-            id = int(args[1]) - 1
-            tasks['task'][id]['status'] = 'Done'
-            tasks['task'][id]['updatedAt'] = time
-            rewrite(tasks,file_path)
+            task = get_task(tasks,int(args[1]))
+            task['status'] = 'Done'
+            task['updatedAt'] = time
         case "list":
-            if len(args)>1:
-                command = args[1]
-                match command:
-                    case "done":
-                        for task in tasks['task']:
-                            if task['status'] == "Done":
-                                print(f"Task : {task['description']}")
-                    case "todo":
-                        for task in tasks['task']:
-                            if task['status'] == "Todo":
-                                print(f"Task : {task['description']}")
-                    case "in-progress":
-                        for task in tasks['task']:
-                            if task['status'] == "In-progress":
-                                print(f"Task : {task['description']}")
-                    case _:
-                        print("Unrecognized command")
-            else:
-                for task in tasks['task']:
-                    print(f"Task : {task['description']} | Status : {task['status']}")
+            status_filter_mode = ["done", "todo", "in-progress"]
+            status_filter = args[1] if len(args) > 1 else None
+            if status_filter and status_filter not in status_filter_mode:
+                print("Unrecognized command")
+                sys.exit(1)
+            for task in tasks['task']:
+                if not status_filter or task['status'].lower() == status_filter:
+                    print(f"ID:{task['id']} | Task : {task['description']} | Status : {task['status']}")
+            return
         case _: 
             print("Unrecognized command")
-    sys.exit()
+            sys.exit(1)
+    save_tasks(tasks,file_path)
+    
 
 if __name__ == "__main__":
     main()
