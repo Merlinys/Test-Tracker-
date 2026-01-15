@@ -96,6 +96,7 @@ def main():
                 'updatedAt' : time
                 }
             )
+            print(f"Task added successfully (ID: {last_id})")
         case "update":
             task = get_task(tasks,int(args[1]))
             task['description'] = " ".join(args[2:])
